@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GDD: Flujo de Etapas Final - El Bat de Valerie</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #050505;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            overflow: hidden;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+            cursor: grab;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(10, 10, 10, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ff00ff;
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.4);
+            pointer-events: none;
+            z-index: 10;
+            max-width: 80vw;
+        }
+        .controls h1 {
+            margin: 0 0 5px 0;
+            font-size: 18px;
+            color: #00ffff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px #00ffff;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <h1>El Bat de Valerie</h1>
+        <p>Mapa de Etapas - Marcadores de Jefes Activados</p>
+    </div>
+
+    <canvas id="flowchartCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('flowchartCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let offset = { x: 0, y: 0 };
+        let isDragging = false;
+        let lastPos = { x: 0, y: 0 };
+        let time = 0;
+
+        const images = {};
+        const imageUrls = {
+            1: "https://i.imgur.com/tSuq3UQ.png",
+            3: "https://i.imgur.com/21ggLYK.png",
+            4: "https://i.imgur.com/zeqqHQb.png",
+            5: "https://i.imgur.com/uoIFhSh.png",
+            6: "https://i.imgur.com/BNSuiQE.png",
+            8: "https://i.imgur.com/wqPYvti.png",
+            7: "https://i.imgur.com/2yLa3FU.png",
+            9: "https://i.imgur.com/kpk2e6U.png",
+            10: "https://i.imgur.com/eEOK9uE.png",
+            11: "https://i.imgur.com/X09scGv.png",
+            12: "https://i.imgur.com/DfVEj9T.png",
+            13: "https://i.imgur.com/QVU1oKV.png",
+            14: "https://i.imgur.com/ZlpNZWq.png",
+            15: "https://i.imgur.com/cABRIDu.png",
+            16: "https://i.imgur.com/jD1UY7H.png",
+            17: "https://i.imgur.com/Rydl4tU.png",
+            19: "https://i.imgur.com/rTjHy9M.png",
+            20: "https://i.imgur.com/nOnVV8C.png",
+            21: "https://i.imgur.com/eTCBsFf.png",
+            22: "https://i.imgur.com/PZC3JFq.png",
+            23: "https://i.imgur.com/BQi4tnK.png"
+        };
+
+        Object.entries(imageUrls).forEach(([id, url]) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = url;
+            images[id] = img;
+        });
+
+        const stages = [
+            { id: 23, name: "CASTILLO VASILI", x: 400, y: -250, type: 'boss' },
+            { id: 21, name: "EL BOSQUE TENEBROSO", x: 250, y: -50, type: 'branch' },
+            { id: 22, name: "LA CRIPTA", x: 550, y: -50, type: 'branch' },
+            { id: 19, name: "EL CEMENTERIO", x: 250, y: 150, type: 'branch' },
+            { id: 20, name: "LAS ALCANTARILLAS", x: 550, y: 150, type: 'branch' },
+            { id: 17, name: "BARRIO INGLÉS", x: 400, y: 350, type: 'main' },
+            { id: 13, name: "EL CALLEJÓN", x: 100, y: 550, type: 'branch' },
+            { id: 14, name: "LAS CATACUMBAS", x: 300, y: 550, type: 'branch' },
+            { id: 15, name: "EL METRO", x: 500, y: 550, type: 'branch' },
+            { id: 16, name: "LA BODEGA", x: 700, y: 550, type: 'branch' },
+            { id: 9, name: "CLUB NOCTURNO", x: 100, y: 750, type: 'branch' },
+            { id: 10, name: "LA CATEDRAL", x: 300, y: 750, type: 'branch' },
+            { id: 11, name: "ESTACIÓN DE METRO", x: 500, y: 750, type: 'branch' },
+            { id: 12, name: "EL MALL", x: 700, y: 750, type: 'branch' },
+            { id: 7, name: "LA CIUDAD", x: 400, y: 950, type: 'main' },
+            { id: 5, name: "EL PARQUE", x: 150, y: 1150, type: 'branch', hasBoss: true },
+            { id: 6, name: "SKATEPARK", x: 400, y: 1150, type: 'branch', hasBoss: true },
+            { id: 8, name: "LA CHATARRERÍA", x: 650, y: 1150, type: 'branch', hasBoss: true },
+            { id: 3, name: "SENDEROS DEL PARQUE", x: 250, y: 1350, type: 'branch' },
+            { id: 4, name: "LA PASARELA", x: 550, y: 1350, type: 'branch' },
+            { id: 1, name: "BARRIO DE VALERIE", x: 400, y: 1550, type: 'start' }
+        ];
+
+        const connections = [
+            { from: 1, to: 3 }, { from: 1, to: 4 },
+            { from: 3, to: 5 }, { from: 3, to: 6 },
+            { from: 4, to: 6 }, { from: 4, to: 8 },
+            { from: 5, to: 7 }, { from: 6, to: 7 }, { from: 8, to: 7 },
+            { from: 7, to: 9 }, { from: 7, to: 10 }, { from: 7, to: 11 }, { from: 7, to: 12 },
+            { from: 9, to: 13 }, { from: 10, to: 14 }, { from: 11, to: 15 }, { from: 12, to: 16 },
+            { from: 13, to: 17 }, { from: 14, to: 17 }, { from: 15, to: 17 }, { from: 16, to: 17 },
+            { from: 17, to: 19 }, { from: 17, to: 20 },
+            { from: 19, to: 21 }, { from: 19, to: 22 },
+            { from: 20, to: 21 }, { from: 20, to: 22 },
+            { from: 21, to: 23 }, { from: 22, to: 23 }
+        ];
+
+        function init() {
+            resize();
+            offset.x = width / 2 - 400;
+            offset.y = height - 1650;
+            animate();
+        }
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        function drawImageCover(ctx, img, x, y, w, h) {
+            if (!img.complete) return;
+            const imgW = img.width;
+            const imgH = img.height;
+            const ratio = Math.max(w / imgW, h / imgH);
+            const newW = imgW * ratio;
+            const newH = imgH * ratio;
+            const offsetX = (w - newW) / 2;
+            const offsetY = (h - newH) / 2;
+            
+            ctx.save();
+            ctx.beginPath();
+            ctx.roundRect(x, y, w, h, 6);
+            ctx.clip();
+            ctx.drawImage(img, x + offsetX, y + offsetY, newW, newH);
+            ctx.restore();
+        }
+
+        function drawNode(node) {
+            const x = node.x + offset.x, y = node.y + offset.y;
+            const w = 180, h = 130;
+            const imgH = 80;
+            const margin = 8;
+
+            const pulse = Math.sin(time * 0.05) * 5 + 15;
+            ctx.shadowBlur = pulse;
+            let color = node.type === 'start' ? '#00ffff' : node.type === 'boss' ? '#ff0000' : node.type === 'branch' ? '#ff00ff' : '#00ff00';
+            
+            ctx.shadowColor = color; 
+            ctx.fillStyle = '#111'; 
+            ctx.strokeStyle = color; 
+            ctx.lineWidth = 3;
+            ctx.beginPath(); 
+            ctx.roundRect(x - w/2, y - h/2, w, h, 12); 
+            ctx.fill(); 
+            ctx.stroke();
+
+            ctx.shadowBlur = 0;
+            const imgW = w - margin * 2;
+            const imgX = x - imgW/2;
+            const imgY = y - h/2 + margin;
+
+            if (images[node.id] && images[node.id].src) {
+                drawImageCover(ctx, images[node.id], imgX, imgY, imgW, imgH);
+            } else {
+                ctx.fillStyle = '#222';
+                ctx.beginPath();
+                ctx.roundRect(imgX, imgY, imgW, imgH, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#444';
+                ctx.strokeRect(x - 10, imgY + imgH/2 - 10, 20, 20);
+            }
+
+            ctx.fillStyle = '#ffffff'; 
+            ctx.font = 'bold 10px "Courier New"'; 
+            ctx.textAlign = 'center';
+            ctx.fillText(node.name, x, y + 25);
+            
+            ctx.font = '7px Arial'; 
+            ctx.fillStyle = color; 
+            ctx.fillText(node.type.toUpperCase(), x, y + 40);
+
+            // Marcador de Boss Fight
+            if (node.hasBoss) {
+                ctx.font = 'bold 8px Arial';
+                ctx.fillStyle = '#ff0000';
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = '#ff0000';
+                ctx.fillText("BOSS FIGHT", x, y + 55);
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        function drawConnections() {
+            ctx.lineWidth = 2;
+            connections.forEach(conn => {
+                const fromNode = stages.find(s => s.id === conn.from), toNode = stages.find(s => s.id === conn.to);
+                if (!fromNode || !toNode) return;
+                
+                const x1 = fromNode.x + offset.x;
+                const y1 = fromNode.y - 65 + offset.y;
+                const x2 = toNode.x + offset.x;
+                const y2 = toNode.y + 65 + offset.y;
+
+                const grad = ctx.createLinearGradient(x1, y1, x2, y2);
+                grad.addColorStop(0, '#ff00ff'); grad.addColorStop(1, '#00ffff');
+                ctx.strokeStyle = grad; ctx.shadowBlur = 4; ctx.shadowColor = 'rgba(255, 0, 255, 0.3)';
+                ctx.beginPath(); ctx.moveTo(x1, y1);
+                const cpY = y1 - (y1 - y2) / 2;
+                ctx.bezierCurveTo(x1, cpY, x2, cpY, x2, y2); ctx.stroke();
+            });
+        }
+
+        function animate() {
+            time++; ctx.clearRect(0, 0, width, height);
+            ctx.strokeStyle = '#121212'; ctx.lineWidth = 1;
+            for (let x = (offset.x % 60); x < width; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
+            for (let y = (offset.y % 60); y < height; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+            drawConnections(); stages.forEach(drawNode);
+            requestAnimationFrame(animate);
+        }
+
+        const getPos = (e) => e.touches ? {x: e.touches[0].clientX, y: e.touches[0].clientY} : {x: e.clientX, y: e.clientY};
+        const start = (e) => { isDragging = true; lastPos = getPos(e); };
+        const move = (e) => {
+            if (!isDragging) return;
+            const pos = getPos(e);
+            offset.x += pos.x - lastPos.x;
+            offset.y += pos.y - lastPos.y;
+            lastPos = pos;
+            if (e.cancelable) e.preventDefault();
+        };
+        const end = () => isDragging = false;
+
+        window.addEventListener('mousedown', start);
+        window.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', end);
+        window.addEventListener('touchstart', start, {passive: false});
+        window.addEventListener('touchmove', move, {passive: false});
+        window.addEventListener('touchend', end);
+        window.addEventListener('resize', resize);
+        window.onload = init;
+    </script>
+</body>
+</html>
